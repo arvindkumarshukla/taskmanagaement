@@ -74,29 +74,38 @@
         
         $('#taskName').val('');
         $("#createTask"). attr("disabled", false);
-        data = JSON.parse(response)
-        if(data.msg == 'Task already created'){
+        if(response.status){
+          if(response.msg == 'Task already created'){
+            Swal.fire({
+              position: "top-center",
+              icon: "error",
+              title: "Oops...",
+              text: response.msg,
+            });
+            return;
+          }
+          else{
+            Swal.fire({
+              position: "top-center",
+              icon: "success",
+              title: response.msg,
+              showConfirmButton: false,
+              timer: 1500
+            });
+          }
+          data = response.data;
+          
+          html = preparePendingHtml(data);
+          $('#pendingTask').html(html);
+        }else{
           Swal.fire({
             position: "top-center",
             icon: "error",
             title: "Oops...",
-            text: data.msg,
+            text: response.msg,
           });
           return;
         }
-        else{
-          Swal.fire({
-            position: "top-center",
-            icon: "success",
-            title: data.msg,
-            showConfirmButton: false,
-            timer: 1500
-          });
-        }
-        data = data.data;
-        
-        html = preparePendingHtml(data);
-        $('#pendingTask').html(html);
       }
    });
   }
@@ -106,10 +115,20 @@
       url: "{{url('getPendingTasks')}}",
       type: "GET",
       success: function( response ) {
-        data = JSON.parse(response)
-        data = data.data;
-        html = preparePendingHtml(data);
-        $('#pendingTask').html(html);
+        if(response.status){
+          data = response.data;
+          html = preparePendingHtml(data);
+          $('#pendingTask').html(html);
+        }else{
+          Swal.fire({
+            position: "top-center",
+            icon: "error",
+            title: "Oops...",
+            text: response.msg,
+          });
+          return;
+        }
+        
       }
    });
   }
@@ -119,11 +138,21 @@
       url: "{{url('getAllTasks')}}",
       type: "GET",
       success: function( response ) {
-        data = JSON.parse(response)
-        data = data.data;
-        html = prepareAllHtml(data);
-        $('#allTask').html(html);
-        $('#taskTable').show();
+        if(response.status){
+          data = response.data;
+          html = prepareAllHtml(data);
+          $('#pendingTask').html(html);
+          // $('#taskTable').show();
+        }else{
+          Swal.fire({
+            position: "top-center",
+            icon: "error",
+            title: "Oops...",
+            text: response.msg,
+          });
+          return;
+        }
+        
       }
    });
   }
@@ -135,7 +164,7 @@
     if(data.length>0){
       html = '';
       for(i=0;i<data.length;i++){
-        html += '<tr><td>'+data[i]['name']+'</td><td><span class="badge badge-warning">Pending</span></td><td><input class="clickToComplete" onclick="clickToComplete('+data[i]['id']+')" type="checkbox" value="'+data[i]['id']+'"></td></tr>';
+        html += '<tr><td>'+data[i]['name']+' ('+getTimeDifferenceInString(data[i]['created_at'])+')</td><td><span class="badge badge-warning">Pending</span></td><td><input class="clickToComplete" onclick="clickToComplete('+data[i]['id']+')" type="checkbox" value="'+data[i]['id']+'"></td></tr>';
       }
     }
     return html;
@@ -150,7 +179,7 @@
         if(data[i]['status'] == 1){
           status = '<span class="badge badge-success">Completed</span>';
         }
-        html += '<tr><td>'+data[i]['name']+'</td><td>'+status+'</td><td><button class="btn btn-danger" onclick="clickToDelete('+data[i]['id']+')">Delete</button></td></tr>';
+        html += '<tr><td>'+data[i]['name']+' ('+getTimeDifferenceInString(data[i]['created_at'])+')</td><td>'+status+'</td><td><button class="btn btn-danger" onclick="clickToDelete('+data[i]['id']+')">Delete</button></td></tr>';
       }
     }
     return html;
@@ -162,17 +191,27 @@
       type: "POST",
       data: {"id":id,"_token": "{{ csrf_token() }}"},
       success: function( response ) {
-        data = JSON.parse(response)
-        Swal.fire({
-          position: "top-center",
-          icon: "success",
-          title: data.msg,
-          showConfirmButton: false,
-          timer: 1500
-        });
-        data = data.data;
-        html = preparePendingHtml(data);
-        $('#pendingTask').html(html);
+        if(response.status){
+          Swal.fire({
+            position: "top-center",
+            icon: "success",
+            title: response.msg,
+            showConfirmButton: false,
+            timer: 1500
+          });
+          data = response.data;
+          html = preparePendingHtml(data);
+          $('#pendingTask').html(html);
+        }else{
+          Swal.fire({
+            position: "top-center",
+            icon: "error",
+            title: "Oops...",
+            text: response.msg,
+          });
+          return;
+        }
+        
       }
    });
   }
@@ -194,21 +233,62 @@
           type: "POST",
           data: {"id":id,"_token": "{{ csrf_token() }}"},
           success: function( response ) {
-            data = JSON.parse(response)
-            Swal.fire({
-              title: "Deleted!",
-              text: "Task has been deleted.",
-              icon: "success"
-            });
-            data = data.data;
-            html = prepareAllHtml(data);
-            $('#allTask').html(html);
+            if(response.status){
+              Swal.fire({
+                title: "Deleted!",
+                text: "Task has been deleted.",
+                icon: "success"
+              });
+              data = response.data;
+              html = prepareAllHtml(data);
+              $('#pendingTask').html(html);
+            }else{
+              Swal.fire({
+                position: "top-center",
+                icon: "error",
+                title: "Oops...",
+                text: response.msg,
+              });
+              return;
+            }
+            
           }
         });
       }
     }) 
   }
 
+  function getTimeDifferenceInString(dateString){
+
+    const givenTime = new Date(dateString);
+    const currentTime = new Date();
+    const differenceInMilliseconds = currentTime - givenTime;
+    const differenceInSeconds = Math.floor(differenceInMilliseconds / 1000);
+    const seconds = differenceInSeconds % 60;
+    const minutes = Math.floor(differenceInSeconds / 60) % 60;
+    const hours = Math.floor(differenceInSeconds / 3600) % 24;
+    const days = Math.floor(differenceInSeconds / (3600 * 24));
+    differenceString = '';
+    if(days > 0){
+      differenceString += `${days} days,`;
+    }
+
+    if(hours > 0){
+      differenceString += `${hours} hours,`;
+    }
+
+    if(minutes > 0){
+      differenceString += `${minutes} minutes,`;
+    }
+
+    if(seconds > 0){
+      differenceString += ` ${seconds} seconds`;
+    }
+    differenceString += ` ago`;
+
+    return differenceString;
+
+  }
   
 </script>
 
